@@ -24,7 +24,7 @@ library(dplyr)
 library(ggplot2)
 library(ggpubr)
 library(rstatix)
-options(scipen = 999)     # converts all numbers to standard notation
+options(scipen = 999)
 knitr::opts_knit$set(root.dir = "~/Desktop/R_Files/")   # Set working directory
 ```
 
@@ -36,7 +36,10 @@ A_raw_data <- read_excel("File_Name.File_type",
     sheet = "Sheet_Name_If_Applicable")
 A_raw_data$Condition_Column_Name <- as.factor(A_raw_data$Condition_Column_Name)
 A_raw_data$Condition_Column_Name <- factor(A_raw_data$Condition_Column_Name,
-                             levels = c("Group1", "Group2", "Group3", "Group4"))
+                             levels = c("Group1", 
+                                        "Group2", 
+                                        "Group3", 
+                                        "Group4"))
 ```
 
 **Chunk 3 - Create simple summary statistics**
@@ -49,8 +52,8 @@ B_summary <- A_raw_data %>%
     SD = sd(Data_Column_Name),
     n = n(),
     SE = SD / sqrt(n),
-    Min = min(Data_Column_Name),           # Calculate the minimum value of each group
-    Max = max(Data_Column_Name)            # Calculate the maximum value of each group
+    Min = min(Data_Column_Name),
+    Max = max(Data_Column_Name)
   )
 B_summary$Condition_Column_Name <- factor(B_summary$Condition_Column_Name,
                              levels = c("Group1", 
@@ -75,11 +78,11 @@ D_comparison_labels <- C_t_test_result %>%
   add_xy_position(x = "Condition_Column_Name")
 D_comparison_labels <- D_comparison_labels %>%
   mutate(
-    label = ifelse(p < 0.0001, "****",          # If the p-value is < 0.001, label with ****
-            ifelse(p < 0.01, "***",             # If the p-value is < 0.01, label with ***
-            ifelse(p < 0.01, "**",              # If the p-value is < 0.01, label with **
-            ifelse(p < 0.05, "*", "ns")))))     # If the p-value is < 0.05, label with *, 
-                                                #   if the p-value is > 0.05, label with ns
+    label = ifelse(p < 0.0001, "****",
+            ifelse(p < 0.01, "***",
+            ifelse(p < 0.01, "**",
+            ifelse(p < 0.05, "*", "ns")))))
+
 D_comparison_labels$y.position <- c(Value1, Value2, Value3)
 B_summary$Colors <- c("Group1" = "lightgreen",
                       "Group2" = "darkgreen",
@@ -102,14 +105,14 @@ S_bar_plot <- ggbarplot(A_raw_data,
   ) +
   theme_classic2() +
   theme(
-    panel.border = element_blank(),             # Remove all borders around the plot area
-    axis.line = element_line(color = "black"),  # Add black axis lines
-    axis.line.x = element_line(size = 0.5),     # Make x-axis line appear thicker
-    axis.line.y = element_line(size = 0.5),     # Make y-axis line appear thicker
-    legend.title = element_blank()              # Remove the legend title
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.line.x = element_line(size = 0.5),
+    axis.line.y = element_line(size = 0.5),
+    legend.title = element_blank()
   ) +
   scale_y_continuous(expand = c(0, 0), 
-                     limits = c(0, 10)) +  # Extend the y-axis
+                     limits = c(0, 10)) +
   stat_pvalue_manual(D_comparison_labels, 
                      label = "p.signif", 
                      tip.length = 0.05)
