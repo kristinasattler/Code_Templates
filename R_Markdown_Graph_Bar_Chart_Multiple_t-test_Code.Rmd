@@ -1,0 +1,128 @@
+---
+title: "R_Markdown_Graph_Bar_Chart_Multiple_t-test_Code"
+author: "Kristina Sattler"
+date: "2024-11-15"
+output: html_document
+---
+**Chunk 0 - Install or update packages (if needed)**
+
+```{r Chunk 0 - Install or update packages (if needed), eval=FALSE}
+install.packages(c("tidyverse",
+                   "readxl",
+                   "rstatix",
+                   "ggplot2",
+                   "ggpubr",
+                   "dplyr"))
+```
+
+**Chunk 1 - Load packages and set working directory**
+
+```{r Chunk 1 - Load packages and set working directory, message=FALSE}
+library(readxl)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+options(scipen = 999)     # converts all numbers to standard notation
+knitr::opts_knit$set(root.dir = "~/Desktop/R_Files/")   # Set working directory
+```
+
+**Chunk 2 - Open data file**
+
+```{r Chunk 2 - Open data file}
+# Open data file with read excel 
+A_raw_data <- read_excel("File_Name.File_type", 
+    sheet = "Sheet_Name_If_Applicable")
+A_raw_data$Condition_Column_Name <- as.factor(A_raw_data$Condition_Column_Name)
+A_raw_data$Condition_Column_Name <- factor(A_raw_data$Condition_Column_Name,
+                             levels = c("Group1", "Group2", "Group3", "Group4"))
+```
+
+**Chunk 3 - Create simple summary statistics**
+
+```{r Chunk 3 - Create simple summary statistics}
+B_summary <- A_raw_data %>%
+  group_by(Condition_Column_Name) %>%
+  summarise(
+    Mean = mean(Data_Column_Name),
+    SD = sd(Data_Column_Name),
+    n = n(),
+    SE = SD / sqrt(n),
+    Min = min(Data_Column_Name),           # Calculate the minimum value of each group
+    Max = max(Data_Column_Name)            # Calculate the maximum value of each group
+  )
+B_summary$Condition_Column_Name <- factor(B_summary$Condition_Column_Name,
+                             levels = c("Group1", 
+                                        "Group2", 
+                                        "Group3", 
+                                        "Group4"))
+```
+
+**Chunk 4 - Run t-tests and collate results to a data frame**
+
+```{r Chunk 4 - Run t-tests and collate results to a data frame}
+C_t_test_result <- A_raw_data %>% 
+  pairwise_t_test(Data_Column_Name ~ Condition_Column_Name)
+C_t_test_result <- C_t_test_result %>% 
+  filter(grepl("Control_Group_Text", group1) | grepl("Control_Group_Text", group2))
+```
+
+**Chunk 5 - Set significance labels and create the graph**
+
+```{r Chunk 5 - Set significance labels and create the graph}
+D_comparison_labels <- C_t_test_result %>% 
+  add_xy_position(x = "Condition_Column_Name")
+D_comparison_labels <- D_comparison_labels %>%
+  mutate(
+    label = ifelse(p < 0.0001, "****",          # If the p-value is < 0.001, label with ****
+            ifelse(p < 0.01, "***",             # If the p-value is < 0.01, label with ***
+            ifelse(p < 0.01, "**",              # If the p-value is < 0.01, label with **
+            ifelse(p < 0.05, "*", "ns")))))     # If the p-value is < 0.05, label with *, 
+                                                #   if the p-value is > 0.05, label with ns
+D_comparison_labels$y.position <- c(Value1, Value2, Value3)
+B_summary$Colors <- c("Group1" = "lightgreen",
+                      "Group2" = "darkgreen",
+                      "Group3" = "lightblue",
+                      "Group4" = "navyblue")
+Db_colors <- setNames(B_summary$Colors, 
+                      B_summary$Condition_Column_Name)
+
+# Create the bar graph
+S_bar_plot <- ggbarplot(A_raw_data, 
+          x = "Condition_Column_Name", 
+          y = "Data_Column_Name", 
+          add = "mean_se", 
+          fill = "Condition_Column_Name") +
+  scale_fill_manual(values = Db_colors) + 
+  labs(
+    title = "Graph Title",
+    x = NULL,
+    y = expression("y-axis title")
+  ) +
+  theme_classic2() +
+  theme(
+    panel.border = element_blank(),             # Remove all borders around the plot area
+    axis.line = element_line(color = "black"),  # Add black axis lines
+    axis.line.x = element_line(size = 0.5),     # Make x-axis line appear thicker
+    axis.line.y = element_line(size = 0.5),     # Make y-axis line appear thicker
+    legend.title = element_blank()              # Remove the legend title
+  ) +
+  scale_y_continuous(expand = c(0, 0), 
+                     limits = c(0, 10)) +  # Extend the y-axis
+  stat_pvalue_manual(D_comparison_labels, 
+                     label = "p.signif", 
+                     tip.length = 0.05)
+S_bar_plot
+```
+
+**Chunk 6 - Save the plot**
+
+```{r Chunk 6 - Save the plot}
+ggsave("Chart_File_Title.File_Type", 
+       plot = S_bar_plot, 
+       dpi = 300, 
+       width = 6, 
+       height = 4, 
+       units = "in")
+```
