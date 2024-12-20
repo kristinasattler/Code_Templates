@@ -1,7 +1,6 @@
 # Code_Templates
 
-Code_Template_Bar_Chart_Single_t-test
-
-Code_Template_Bar_Chart_Multiple_Independent_t-test
-
-Code_Template_Aligned_Dot_Plot_ANOVA/Tukey
+CodeA: Aligned Bar Chart with Student's t-test<br>
+- Code Template: CodeA_Template_Aligned_Bar_Chart_Single_t-test.Rmd<br>
+- Example Code: CodeA_Example_Bar_Chart_Single_t-test.Rms<br>
+- Example Data: CodeA_Example_Data_t-test_aligned_bar_chart.xlsx<br>
