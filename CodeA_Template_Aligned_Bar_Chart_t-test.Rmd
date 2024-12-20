@@ -1,0 +1,272 @@
+---
+title: "Code_Template_Bar_Chart_Single_t-test"
+author: "Kristina Sattler"
+date: "2024-11-17"
+output:
+  html_document:
+    theme: darkly
+    highlight: zenburn
+---
+**Chunk 0 - Install or update packages (if needed- this only needs to be done once after downloading RStudio)**
+
+```{r Chunk 0 - Install or update packages (if needed), eval=FALSE}
+install.packages(c("tidyverse",
+                   "readxl",
+                   "dplyr",
+                   "ggplot2",
+                   "ggpubr",
+                   "rstatix",
+                   ))
+```
+
+**Chunk 1 - Load packages and set working directory**<br>
+Set your working directory:<br>
+\> Session \> Set Working Directory \> Choose Directory \> Choose directory containing the data file<br>
+\> Paste pathway in the knitr string ("") in line 35<br>
+
+```{r Chunk 1 - Load packages and set working directory, message=FALSE}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+options(scipen = 999)  # converts all numbers to standard notation
+knitr::opts_knit$set(root.dir = "~/path/to/file")  # Set working directory
+getwd()                                            # Print working directory
+```
+
+**Chunk 2 - Open data file, set conditions, and set condition order**<br> 
+Replace components with values pertaining to your data \> control + F<br> 
+- Condition_Column_Name [x19]<br> 
+- Data_Column_Name [x7]<br> 
+- Exp_Group1 [x6]<br> 
+- Exp_Group2 [x6]<br> 
+- Exp_Group1_color [x2] (color name, #hex_code, or RGB code)<br> 
+- Exp_Group2_color [x2]<br>
+
+```{r Chunk 2 - Open data file, set conditions, and set condition order}
+# Open data file with read excel 
+A_raw_data <- read_excel(                        # Open data file and create an object
+  "Data_file_name.xlsx",                         # Specify data file name
+    #sheet = "Sheet_Name_If_Applicable",          # Specify sheet (if applicable) 
+    #range = "First_cell:Last_Cell"               # Specify the range (if applicable)
+)
+A_raw_data$Condition_Column_Name <- as.factor(   # Set condition column name as a factor
+  A_raw_data$Condition_Column_Name)              # Specify object and column
+A_raw_data$Condition_Column_Name <- factor(      # Set the levels (order) of the experimental groups
+  A_raw_data$Condition_Column_Name,              # Specify data frame and column 
+  levels = c("Exp_Group1",                       # List groups in order
+             "Exp_Group2"
+             ))
+```
+
+**Chunk 3 - Create simple summary statistics**
+
+```{r Chunk 3 - Create simple summary statistics}
+B_summary <- A_raw_data %>%                 # Create a new data frame called B_summary
+  group_by(Condition_Column_Name) %>%       # Set data groups 
+  summarise(                                # Summarize these parameters for each group
+    Mean = mean(Data_Column_Name),          #   Calculate the mean value 
+    n = n(),                                #   Calculate the number of samples
+    SD = sd(Data_Column_Name),              #   Calculate the standard deviation
+    SE = SD / sqrt(n),                      #   Calculate the standard error
+    Min = min(Data_Column_Name),            #   Calculate the minimum value of each group
+    Max = max(Data_Column_Name)             #   Calculate the maximum value of each group
+  )
+B_summary$Condition_Column_Name <- factor(  # Set the levels (order) of the experimental groups
+  B_summary$Condition_Column_Name,          #   Specify data frame and column 
+  levels = c("Exp_Group1",                  #   List groups in order (same as in Chunk 2)
+             "Exp_Group2"
+             ))
+```
+
+**Chunk 4 - Run t-test and collate results to a data frame**
+
+```{r Chunk 4 - Run t-test and collate results to a data frame}
+C_test_result <- t.test(                                 # Run a t-test
+  Data_Column_Name ~ Condition_Column_Name,              #   Compare data grouped by the condition column
+  data = A_raw_data,                                     #   Specify data origin
+  var.equal = TRUE)                                      #   Assume equal variances
+C_test_result_df <- data.frame(                          # Write results to a data frame
+  group1 = levels(A_raw_data$Condition_Column_Name)[1],  #   Call the first level (Exp_Group1) to propagate that value
+  group2 = levels(A_raw_data$Condition_Column_Name)[2],  #   Call the second level (Exp_Group2) to propagate that value
+  t_statistic = C_test_result$statistic,                 #   T-statistic
+  p_value = C_test_result$p.value,                       #   p-value
+  mean_difference = diff(C_test_result$estimate),        #   Difference between group means
+  conf_low = C_test_result$conf.int[1],                  #   Lower bound of confidence interval
+  conf_high = C_test_result$conf.int[2],                 #   Upper bound of confidence interval
+  df = C_test_result$parameter                           #   Degrees of freedom
+)
+```
+
+**Chunk 5 - Set significance labels, set graph appearances, and create the graph**<br> 
+Set these parameters:<br> 
+- y.position [line 128]<br> 
+- y_limit [line 129]<br> 
+- geom_errorbar \> width [line 166]<br> 
+- labs \> title [line 171]<br> 
+- labs \> y [line 173]<br> 
+To remove dot data points, add a \# at the beginning of lines 157, 158, and 159: geom_point(...)<br>
+
+```{r Chunk 5 - Set significance labels and create the graph}
+C_test_result_df <- C_test_result_df %>%              # Add elements to the test result data frame
+  mutate(                                             #  Create new columns
+    label = case_when(                                #   Set the label under these Condition_Column_Names
+      `p_value` <= 0.0001 ~ "****",                   #     If the p-value is < 0.001, label with ****
+      `p_value` <= 0.001 ~ "***",                     #     If the p-value is < 0.01, label with ***
+      `p_value` <= 0.01 ~ "**",                       #     If the p-value is < 0.01, label with **
+      `p_value` <= 0.05 ~ "*",                        #     If the p-value is < 0.05, label with *
+      TRUE ~ "ns"                                     #     If the p-value is > 0.05, label with ns
+      ),
+    p_label = ifelse(                                 #  Create a new column with conditional requirements
+      p_value >= 0.05,                                #   Specify the p-value cutoff for nto significant
+      paste0("ns, p=",                                #   If p is not significant, paste the p-value along with ns
+             format(p_value, digits = 3)),            #     Format the label as p-value pasted to three digits
+      label                                           #   Use the label column for significant p-values
+      ),
+    y.position = c(Value),                               #  Set the y position of the comparison bars/labels
+    y_limit = Value,                                     #  Record the value of the y-axis length
+    )
+
+B_summary <- B_summary %>%                            # Add elements to the summary data frame
+  mutate(                                             #  Create new columns
+    tip_length = c(0.45, 0.12),                       #   Specify left and right tip length values
+    Colors = c("Exp_Group1" = "Exp_Group1_color",     #   Specify color of Exp_Group1
+               "Exp_Group2" = "Exp_Group2_color")     #   Specify color of Exp_Group2
+    )
+V_colors <- setNames(B_summary$Colors,                # Create a dynamic object from the color column to assign to the plot
+                     B_summary$Condition_Column_Name)
+
+S_bar_dot_plot <- ggdotplot(                          # Create the aligned dot plot with bars using ggdotplot
+  A_raw_data,                                         #  Call the original data file
+  x = "Condition_Column_Name",                        #  Set the x-axis to the Condition_Column_Name column
+  y = "Data_Column_Name",                             #  Set the y-axis to the data column
+  dotsize = 0,                                        #  Sets the size of the data dots from ggdotplot to 0
+  binwidth = 1                                        #  Control the spacing between bars
+  ) +
+  geom_col(                                           # Add bars displaying the average of each group
+    data = B_summary,                                 #   Call data from the summary table
+    aes(x = Condition_Column_Name,                    #   Set the aesthetic characteristics and call the column
+        y = Mean,                                     #    Set the Y value of each bar to the mean of each group
+        fill = Condition_Column_Name),                #    Fill the bars with data from each Condition
+    color = "black",                                  #   Outline the bars in black
+    width = 0.3,                                      #   Set the width of the bars
+    alpha = 1,                                        #   Set opacity of the bars
+  ) +
+  geom_point(shape = 16,                              # Set the shape of the data points [Point Options](https://docs.google.com/document/d/12yir4iAo4Y_E7MXwwrNkXOmGA0i5PhgYC6ubD6SwfOs/edit?usp=sharing)
+             size = 1,                                #   Set the size of the data points
+  ) +
+  geom_errorbar(                                      # Create error bars
+    data = B_summary,                                 #   Call data from B_summary
+    aes(x = Condition_Column_Name,                    #   Fill data from the Condition_Column_Name column
+        ymin = Mean - SE,                             #    Set the minimum y value of the error bar
+        ymax = Mean + SE),                            #    Set the maximum y value of the error bar
+    color = "black",                                  #   Set the colors for error bars
+    width = 0.1,                                      #   Set the width of the error bar ends
+    linewidth = 0.4,                                  #   Set the thickness of the line
+    inherit.aes = FALSE                               #   Do not inherit aesthetic characteristics from ggdotplot
+  ) +
+  labs(                                               # Set labels
+    title = "Graph_title",                            #  Set the title of the graph
+    x = NULL,                                         #  Set the title of the x-axis [NULL if no title]
+    y = expression("y-axis_title"),                   #  Set the title of the y-axis 
+    fill = NULL                                       #  Remove ggdotplot shapes from the legend
+  ) +
+  scale_fill_manual(values = V_colors) +              # Call colors column to set sample colors
+  theme_classic() +                                   # Set the appearance of the chart- [Theme Options](https://docs.google.com/document/d/12yir4iAo4Y_E7MXwwrNkXOmGA0i5PhgYC6ubD6SwfOs/edit?usp=sharing)
+  theme(                                              # Set appearance of specific components of the chart
+    plot.title = element_text(                        #  Set visual parameters of the chart title
+      face = "bold",                                  #   Set chart title text to bold
+      hjust = 0.35,                                   #   Set horizontal justification of the title
+      size = 10,                                      #   Set chart title text size to 10
+      ), 
+    axis.text.y = element_text(                       #  Set visual parameters of the y-axis
+      face = "bold",                                  #   Set y-axis text to bold
+      size = 9,                                       #   Set y-axis text size to 9
+      ),
+    axis.text.x = element_text(                       #  Set visual parameters of the x-axis
+      face = "bold",                                  #   Set x-axis text to bold
+      #hjust = 1,                                      #   Set horizontal justification of the bar labels
+      size = 9,                                       #   Set x-axis text size to 9
+      #angle = 45,                                     #   Set x-axis bar labels to 45^o angle
+      ),
+    axis.title.y = element_text(                      #  Set visual parameters of the y-axis title
+      face = "bold",                                  #   Set y-axis title text to bold 
+      size = 9,                                       #   Set y-axis title text size to 9
+      margin = margin(r = 1),                         #   Set the distance of the y-axis title to the axis
+      ),
+    plot.margin = unit(c(0.2,0.2,0.2,0.2), "lines"),  #  Set the margins of the plot
+    legend.position = "none"                          #  Remove the legend
+    ) +
+  scale_y_continuous(                                 # Set the appearance of the y-axis
+    expand = c(0, 0),                                 #  Set the amount of white space around the y-axis
+    limits = c(0, C_test_result_df$y_limit[1])        #  Set the range of the y-axis
+    #breaks = seq(0, 9, 3)                             #  Set the height and tick mark intervals of the y-axis
+  ) +
+  stat_pvalue_manual(                                 # Add comparison bars/labels with statistical analyses
+    C_test_result_df,                                 #  Call data from C_test_result_df
+    label = "p_label",                                #  Label comparison bars from the p_label column
+    tip.length = c(B_summary$tip_length[1],           #  Call the length of the left comparison bar tip
+                   B_summary$tip_length[2]),          #  Call the length of the right comparison bar tip
+    #size = 3.5,                                       #  Set the size of the text of comparison labels
+    fontface = "bold",                                #  Set the text of comparison bars to bold
+    linewidth = 1,                                    #  Set the width of the comparison bar lines
+  )
+S_bar_dot_plot                                        # View the graph
+```
+
+<br>
+**Chunk 6 - Save the plot and stats results**<br> 
+Set these parameters:<br> 
+- .csv file name [line 253]<br> 
+- .png chart file name [line 257]<br> 
+- Optional: resolution (dpi, line 259) and dimensions (width/height, lines 260, 261)<br> 
+- .pdf chart file name [line 264]<br> 
+- Optional: resolution (dpi, line 266) and dimensions (width/height, lines 267, 268)<br>
+
+```{r Chunk 6 - Save the plot and stats results}
+B_summary <- B_summary %>%                   # Prepare B_summary to merge with D_comparison_labels
+  mutate(Source = paste("B_summary",         #   Create a column called "Source" to specify the origin of the data
+                        row_number(),        #    Specify which row(s) to include
+                        sep = "_"))          #    Specify the data separator
+C_test_result_df <- C_test_result_df %>%     # Prepare C_test_result_df to merge with B_summary
+  mutate(                                    #   Create columns
+    Source = paste(                          # Paste the data into a column called Source
+      "C_test_result_df",                    #   Propagate the data frame name to the row
+      row_number(),                          #    Specify which row(s) to include
+      sep = "_"),                            #    Specify the data separator
+    Condition_Column_Name = NA,              #    Set the value of these columns (from B_summary)
+    Mean = NA,                               #       to "NA" so the dimensions of the data frame match
+    SD = NA,
+    n = NA,
+    SE = NA,
+    Min = NA,
+    Max = NA,
+    tip_length = NA,
+    Colors = NA
+)
+D_combined_df <- bind_rows(B_summary, C_test_result_df)  # Combine the two data frames
+rownames(D_combined_df) <- NULL                          # Remove pre-existing row names
+D_combined_df <- D_combined_df %>%                       # Manipulate the data frame
+  column_to_rownames(var = "Source")                     #   Convert Source column to row name
+write.csv(D_combined_df,                                 # Create a .csv file
+          "File_Name_summary.csv",                       #   Name the file 
+          row.names = TRUE)                              #   keep row names
+
+# Save the plot; available file type options: .pdf .tiff .png .jpeg
+ggsave("Example_Bar_Chart.png",  # Specify file name and type
+       plot = S_bar_dot_plot,    #   Specify which plot to save
+       dpi = 300,                #   Resolution in pixels [300 is good]
+       width = 6,                #   Width of the image
+       height = 4,               #   Height of the image
+       units = "in",             #   Units of the width and height. Available options: “in” or “cm”
+)
+ggsave("Example_Bar_Chart.pdf",  # Specify file name and type
+       plot = S_bar_dot_plot,    #   Specify which plot to save
+       dpi = 300,                #   Resolution in pixels [300 is good]
+       width = 6,                #   Width of the image
+       height = 4,               #   Height of the image
+       units = "in",             #   Units of the width and height. Available options: “in” or “cm”
+)
+```
